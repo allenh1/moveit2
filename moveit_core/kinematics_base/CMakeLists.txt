@@ -5,7 +5,7 @@ add_library(${MOVEIT_LIB_NAME} SHARED src/kinematics_base.cpp)
 set_target_properties(${MOVEIT_LIB_NAME} PROPERTIES VERSION "${${PROJECT_NAME}_VERSION}")
 
 # This line is needed to ensure that messages are done being built before this is built
-ament_target_dependencies(${MOVEIT_LIB_NAME} urdf urdfdom_headers)
+ament_target_dependencies(${MOVEIT_LIB_NAME} urdf urdfdom_headers rclcpp)
 
 install(TARGETS ${MOVEIT_LIB_NAME}
         LIBRARY DESTINATION lib

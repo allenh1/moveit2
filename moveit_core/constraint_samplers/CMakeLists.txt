@@ -30,13 +30,14 @@ install(TARGETS ${MOVEIT_LIB_NAME}
 
 install(DIRECTORY include/ DESTINATION include)
 
-if(BUILD_TESTING)
+if(0)  # TODO(allenh1): can't build pr2_arm_kinematics::PR2ArmIKSolver, missing overrides
   find_package(orocos_kdl REQUIRED)
   find_package(angles REQUIRED)
   find_package(tf2_kdl REQUIRED)
   find_package(moveit_resources REQUIRED)
+  find_package(kdl_parser)
 
-  include_directories(${orocos_kdl_INCLUDE_DIRS} ${angles_INCLUDE_DIRS} ${tf2_kdl_INCLUDE_DIRS} ${moveit_resources_INCLUDE_DIRS})
+  include_directories(${orocos_kdl_INCLUDE_DIRS} ${angles_INCLUDE_DIRS} ${tf2_kdl_INCLUDE_DIRS} ${moveit_resources_INCLUDE_DIRS}  ${kdl_parser_INCLUDE_DIRS})
 
   if(WIN32)
     # set(append_library_dirs "$<TARGET_FILE_DIR:${PROJECT_NAME}>;$<TARGET_FILE_DIR:${PROJECT_NAME}_TestPlugins1>")

@@ -4,9 +4,13 @@ add_library(${MOVEIT_LIB_NAME} SHARED
   src/lexical_casts.cpp
   src/message_checks.cpp
   src/rclcpp_utils.cpp
-)
+  )
 
-ament_target_dependencies(${MOVEIT_LIB_NAME} Boost moveit_msgs)
+find_package(Boost COMPONENTS regex)
+
+include_directories(${Boost_INCLUDE_DIRS})
+ament_target_dependencies(${MOVEIT_LIB_NAME} moveit_msgs rclcpp)
+target_link_libraries(${MOVEIT_LIB_NAME} ${Boost_LIBRARIES})
 set_target_properties(${MOVEIT_LIB_NAME} PROPERTIES VERSION "${${PROJECT_NAME}_VERSION}")
 
 install(TARGETS ${MOVEIT_LIB_NAME}
@@ -19,17 +23,20 @@ install(DIRECTORY include/ DESTINATION include)
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(moveit_resources REQUIRED)
+  find_package(ament_index_cpp REQUIRED)
   set(MOVEIT_TEST_LIB_NAME moveit_test_utils)
   add_library(${MOVEIT_TEST_LIB_NAME} SHARED
     src/robot_model_test_utils.cpp)
   ament_target_dependencies(${MOVEIT_TEST_LIB_NAME}
-    Boost
     urdf
     srdfdom
     urdfdom
     urdfdom_headers
     moveit_resources
-  )
+    rclcpp
+    ament_index_cpp
+    )
+  target_link_libraries(${MOVEIT_TEST_LIB_NAME} ${Boost_LIBRARIES})
 
   set_target_properties(${MOVEIT_TEST_LIB_NAME} PROPERTIES VERSION "${${PROJECT_NAME}_VERSION}")
 
