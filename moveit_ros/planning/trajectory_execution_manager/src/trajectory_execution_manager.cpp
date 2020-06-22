@@ -121,6 +121,7 @@ void TrajectoryExecutionManager::initialize()
   execution_duration_monitoring_ = true;
   execution_velocity_scaling_ = 1.0;
   allowed_start_tolerance_ = 0.01;
+  wait_for_trajectory_completion_ = true;
 
   allowed_execution_duration_scaling_ = DEFAULT_CONTROLLER_GOAL_DURATION_SCALING;
   allowed_goal_duration_margin_ = DEFAULT_CONTROLLER_GOAL_DURATION_MARGIN;
@@ -165,8 +166,26 @@ void TrajectoryExecutionManager::initialize()
     if (!controller.empty())
       try
       {
+        //@note: because of things being singlethreaded, we make a node named "moveit_simple_controller_manager"
+        //then copy parameters from the move_group node and then add it to the multithreadedexecutor
+        //alternatives:
+        //node_->create_sub_node doesnt work
+        //rename the node under ros_controllers.yaml to moveit_simple_controller_manager
+        rclcpp::NodeOptions opt;
+        opt.allow_undeclared_parameters(true);
+        opt.automatically_declare_parameters_from_overrides(true);
+        controller_mgr_node_.reset(new rclcpp::Node("moveit_simple_controller_manager", opt));
+
+        //the alternative is to create a node with name "moveit_simple_controller_manager"
+        auto allparams = node_->get_node_parameters_interface()->get_parameter_overrides();
+        for (auto param : allparams)
+        {
+          //RCLCPP_INFO(LOGGER, "%s", param.first.c_str());
+          controller_mgr_node_->set_parameter(rclcpp::Parameter(param.first, param.second));
+        }
+
         controller_manager_ = controller_manager_loader_->createUniqueInstance(controller);
-        controller_manager_->initialize(node_);
+        controller_manager_->initialize(controller_mgr_node_);
       }
       catch (pluginlib::PluginlibException& ex)
       {
@@ -180,6 +199,9 @@ void TrajectoryExecutionManager::initialize()
       EXECUTION_EVENT_TOPIC, 100, std::bind(&TrajectoryExecutionManager::receiveEvent, this, std::placeholders::_1));
 
   // reconfigure_impl_ = new DynamicReconfigureImpl(this);
+  controller_mgr_node_->get_parameter("trajectory_execution.allowed_execution_duration_scaling", allowed_execution_duration_scaling_);
+  controller_mgr_node_->get_parameter("trajectory_execution.allowed_goal_duration_margin", allowed_goal_duration_margin_);
+  controller_mgr_node_->get_parameter("trajectory_execution.allowed_start_tolerance", allowed_start_tolerance_);
 
   if (manage_controllers_)
     RCLCPP_INFO(LOGGER, "Trajectory execution is managing controllers");
@@ -1305,7 +1327,7 @@ void TrajectoryExecutionManager::executeThread(const ExecutionCompleteCallback& 
 
   // only report that execution finished successfully when the robot actually stopped moving
   if (last_execution_status_ == moveit_controller_manager::ExecutionStatus::SUCCEEDED)
-    waitForRobotToStop(*trajectories_[i - 1]);
+    waitForRobotToStop(*trajectories_[i - 1], 10);
 
   RCLCPP_INFO(LOGGER, "Completed trajectory execution with status %s ...", last_execution_status_.asString().c_str());
 
@@ -1404,7 +1426,7 @@ bool TrajectoryExecutionManager::executePart(std::size_t part_index)
     }
 
     // compute the expected duration of the trajectory and find the part of the trajectory that takes longest to execute
-    rclcpp::Time current_time = rclcpp::Clock().now();
+    rclcpp::Time current_time = node_->now();
     rclcpp::Duration expected_trajectory_duration(0.0);
     int longest_part = -1;
     for (std::size_t i = 0; i < context.trajectory_parts_.size(); ++i)

@@ -252,7 +252,7 @@ void PlanningSceneMonitor::initialize(const planning_scene::PlanningScenePtr& sc
   double temp_wait_time = 0.05;
 
   if (!robot_description_.empty())
-    node_->get_parameter_or(robot_description_ + "_planning/shape_transform_cache_lookup_wait_time", temp_wait_time,
+    node_->get_parameter_or(robot_description_ + "_planning.shape_transform_cache_lookup_wait_time", temp_wait_time,
                             temp_wait_time);
 
   shape_transform_cache_lookup_wait_time_ = rclcpp::Duration((int64_t)temp_wait_time * 1.0e+9);
@@ -263,7 +263,25 @@ void PlanningSceneMonitor::initialize(const planning_scene::PlanningScenePtr& sc
   state_update_timer_ =
       node_->create_wall_timer(dt_state_update_, std::bind(&PlanningSceneMonitor::stateUpdateTimerCallback, this));
 
+  //@todo: can remove DynamicReconfigureImpl now that we have ported parameters over
   // reconfigure_impl_ = new DynamicReconfigureImpl(this);
+  bool publish_planning_scene = node_->get_parameter("planning_scene_monitor.publish_planning_scene");
+  bool publish_geom_updates = node_->get_parameter("planning_scene_monitor.publish_geometry_updates");
+  bool publish_state_updates = node_->get_parameter("planning_scene_monitor.publish_state_updates");
+  bool publish_transform_updates = node_->get_parameter("planning_scene_monitor.publish_transforms_updates");
+
+  PlanningSceneMonitor::SceneUpdateType event = PlanningSceneMonitor::UPDATE_NONE;
+  if (publish_geom_updates)
+    event = (PlanningSceneMonitor::SceneUpdateType)((int)event | (int)PlanningSceneMonitor::UPDATE_GEOMETRY);
+  if (publish_state_updates)
+    event = (PlanningSceneMonitor::SceneUpdateType)((int)event | (int)PlanningSceneMonitor::UPDATE_STATE);
+  if (publish_transform_updates)
+    event = (PlanningSceneMonitor::SceneUpdateType)((int)event | (int)PlanningSceneMonitor::UPDATE_TRANSFORMS);
+  if (publish_planning_scene)
+  {
+    this->setPlanningScenePublishingFrequency(100);
+    this->startPublishingPlanningScene(event);
+  }
 }
 
 void PlanningSceneMonitor::monitorDiffs(bool flag)
@@ -1127,14 +1145,20 @@ void PlanningSceneMonitor::stopWorldGeometryMonitor()
     octomap_monitor_->stopMonitor();
 }
 
-void PlanningSceneMonitor::startStateMonitor(const std::string& joint_states_topic,
+
+
+void PlanningSceneMonitor::startStateMonitor(const rclcpp::Node::SharedPtr& listening_node,
+                                             const std::string& joint_states_topic,
                                              const std::string& attached_objects_topic)
 {
   stopStateMonitor();
   if (scene_)
   {
     if (!current_state_monitor_)
-      current_state_monitor_.reset(new CurrentStateMonitor(node_, getRobotModel(), tf_buffer_));
+    {
+      current_state_monitor_.reset(new CurrentStateMonitor(listening_node ? listening_node : node_,
+        getRobotModel(), tf_buffer_));
+    }
     current_state_monitor_->addUpdateCallback(boost::bind(&PlanningSceneMonitor::onStateUpdate, this, _1));
     current_state_monitor_->startStateMonitor(joint_states_topic);
 
@@ -1396,7 +1420,7 @@ void PlanningSceneMonitor::configureCollisionMatrix(const planning_scene::Planni
   // read overriding values from the param server
 
   // first we do default collision operations
-  if (!node_->has_parameter(robot_description_ + "_planning/default_collision_operations"))
+  if (!node_->has_parameter(robot_description_ + "_planning.default_collision_operations"))
     RCLCPP_DEBUG(LOGGER, "No additional default collision operations specified");
   else
   {
@@ -1445,12 +1469,11 @@ void PlanningSceneMonitor::configureDefaultPadding()
 
   // Ensure no leading slash creates a bad param server address
   static const std::string robot_description =
-      (robot_description_[0] == '/') ? robot_description_.substr(1) : robot_description_;
-
-  node_->get_parameter_or(robot_description + "_planning/default_robot_padding", default_robot_padd_, 0.0);
-  node_->get_parameter_or(robot_description + "_planning/default_robot_scale", default_robot_scale_, 1.0);
-  node_->get_parameter_or(robot_description + "_planning/default_object_padding", default_object_padd_, 0.0);
-  node_->get_parameter_or(robot_description + "_planning/default_attached_padding", default_attached_padd_, 0.0);
+      (robot_description_[0] == '.') ? robot_description_.substr(1) : robot_description_;
+  node_->get_parameter_or(robot_description + "_planning.default_robot_padding", default_robot_padd_, 0.0);
+  node_->get_parameter_or(robot_description + "_planning.default_robot_scale", default_robot_scale_, 1.0);
+  node_->get_parameter_or(robot_description + "_planning.default_object_padding", default_object_padd_, 0.0);
+  node_->get_parameter_or(robot_description + "_planning.default_attached_padding", default_attached_padd_, 0.0);
   default_robot_link_padd_ = std::map<std::string, double>();
   default_robot_link_scale_ = std::map<std::string, double>();
   // TODO: enable parameter type support to std::map

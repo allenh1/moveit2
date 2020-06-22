@@ -57,13 +57,15 @@ MOVEIT_CLASS_FORWARD(MoveGroupCapability)
 class MoveGroupCapability
 {
 public:
-  MoveGroupCapability(const std::string& capability_name) : node_handle_("~"), capability_name_(capability_name)
+  MoveGroupCapability(const std::string& capability_name) : capability_name_(capability_name)
   {
   }
-
+  
   virtual ~MoveGroupCapability()
   {
   }
+
+  void setNode(const rclcpp::Node::SharedPtr& node);
 
   void setContext(const MoveGroupContextPtr& context);
 
@@ -92,10 +94,9 @@ protected:
   planning_interface::MotionPlanRequest
   clearRequestStartState(const planning_interface::MotionPlanRequest& request) const;
   moveit_msgs::msg::PlanningScene clearSceneRobotState(const moveit_msgs::msg::PlanningScene& scene) const;
-  bool performTransform(geometry_msgs::PoseStamped& pose_msg, const std::string& target_frame) const;
+  bool performTransform(geometry_msgs::msg::PoseStamped& pose_msg, const std::string& target_frame) const;
 
-  ros::NodeHandle root_node_handle_;
-  ros::NodeHandle node_handle_;
+  rclcpp::Node::SharedPtr node_;
   std::string capability_name_;
   MoveGroupContextPtr context_;
 };

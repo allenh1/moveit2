@@ -132,8 +132,8 @@ bool ompl_interface::OMPLInterface::loadPlannerConfiguration(
     const std::map<std::string, std::string>& group_params,
     planning_interface::PlannerConfigurationSettings& planner_config)
 {
-  rcl_interfaces::msg::ListParametersResult planner_params_result =
-      node_->list_parameters({ parameter_namespace_ + ".planner_configs." + planner_id }, 2);
+  rcl_interfaces::msg::ListParametersResult planner_params_result = node_->list_parameters(
+      { parameter_namespace_ + ".planner_configs." + planner_id }, 99);  // TODO(henningkayser): verify search depth
 
   if (planner_params_result.names.empty())
   {
@@ -146,12 +146,17 @@ bool ompl_interface::OMPLInterface::loadPlannerConfiguration(
 
   // default to specified parameters of the group (overridden by configuration specific parameters)
   planner_config.config = group_params;
-
-  // read parameters specific for this configuration
+  
+  // read parameters specific for this configuration, remove prefixes
+  std::string strip = parameter_namespace_ + ".planner_configs." + planner_id + ".";
   for (const auto& planner_param : planner_params_result.names)
   {
+    // TODO(henningkayser): verify name is working for config map
     const rclcpp::Parameter param = node_->get_parameter(planner_param);
-    auto param_name = planner_param.substr(planner_param.find(planner_id) + planner_id.size() + 1);
+    std::string param_name = param.get_name();
+    auto pos = param_name.find(strip);
+    if (pos != std::string::npos)
+      param_name.erase(pos, strip.length());
     planner_config.config[param_name] = param.value_to_string();
   }
 
@@ -177,32 +182,30 @@ void ompl_interface::OMPLInterface::loadPlannerConfigurations()
     {
       if (node_->has_parameter(group_name_param + "." + k))
       {
-        std::string value;
-        if (node_->get_parameter(group_name_param + "." + k, value))
+        rclcpp::Parameter param = node_->get_parameter(group_name_param + "." + k);
+        if (param.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
         {
+          std::string value = param.get_value<std::string>();
           if (!value.empty())
             specific_group_params[k] = value;
           continue;
         }
-
-        double value_d;
-        if (node_->get_parameter(group_name_param + "." + k, value_d))
+        else if (param.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE)
         {
+          double value_d = param.get_value<double>();
           // convert to string using no locale
           specific_group_params[k] = moveit::core::toString(value_d);
           continue;
         }
-
-        int value_i;
-        if (node_->get_parameter(group_name_param + "." + k, value_i))
+        else if (param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER)
         {
+          int value_i = param.get_value<int>();
           specific_group_params[k] = std::to_string(value_i);
           continue;
         }
-
-        bool value_b;
-        if (node_->get_parameter(group_name_param + "." + k, value_b))
+        else if (param.get_type() == rclcpp::ParameterType::PARAMETER_BOOL)
         {
+          bool value_b = param.get_value<bool>();
           specific_group_params[k] = std::to_string(value_b);
           continue;
         }

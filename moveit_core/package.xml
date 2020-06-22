@@ -26,6 +26,8 @@
   <depend>boost</depend>
   <depend>eigen</depend>
   <depend>bullet</depend>
+  <depend>common_interfaces</depend>
+  <depend>pluginlib</depend>
   <depend>eigen_stl_containers</depend>
   <depend>libfcl-dev</depend>
   <depend>geometric_shapes</depend>
